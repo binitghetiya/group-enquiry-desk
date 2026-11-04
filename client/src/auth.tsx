@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { api, ApiError, setCsrfToken, type Role, type User } from './api';
+import { Alert, LoadingState } from './components/ui';
 
 interface AuthState {
   user: User | null;
@@ -56,10 +57,14 @@ export function useAuth(): AuthState {
 export function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <p className="muted">Loading…</p>;
+  if (loading) return <LoadingState label="Checking your session…" />;
   if (!user) return <Navigate to="/admin/login" replace state={{ from: location.pathname }} />;
   if (role === 'admin' && user.role !== 'admin') {
-    return <p className="alert alert-error">This area is for administrators only.</p>;
+    return (
+      <Alert tone="error" icon="lock" title="Administrators only">
+        <p>This area is for administrators only.</p>
+      </Alert>
+    );
   }
   return <>{children}</>;
 }

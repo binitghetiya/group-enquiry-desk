@@ -15,7 +15,8 @@ This is a secure enquiry desk shared by five brands (IP Studios, DrVet, Space42 
 
 ## Requirements
 - Node.js **22+** and npm 10+. Windows, macOS and Linux all work.
-- No Docker, PHP, external database or API key needed. SQLite is embedded via `better-sqlite3` (prebuilt binaries).
+- No Docker, PHP, external database or API key needed locally. Data is stored in a local SQLite file through the libSQL client (`@libsql/client`).
+- For hosting on Vercel, the same code talks to a hosted [Turso](https://turso.tech) database instead. See [Deploy to Vercel](#deploy-to-vercel).
 
 ## Setup
 ```bash
@@ -23,7 +24,7 @@ npm install
 cp .env.example .env        # then fill the three *_SECRET values (see comment in the file)
 npm run seed                # creates fictional admin + staff accounts and 10 sample enquiries
 npm run dev                 # API on http://127.0.0.1:4000, UI on http://127.0.0.1:5173
-npm test                    # 46 automated security/functionality tests
+npm test                    # 51 automated security/functionality tests
 ```
 - If `SEED_ADMIN_PASSWORD` / `SEED_STAFF_PASSWORD` are empty, `npm run seed` generates random passwords and prints them **once**.
 - `npm run seed -- --reset` wipes and recreates the data. In Windows PowerShell 5.1, quote the separator: `npm run seed '--' --reset`.
@@ -33,9 +34,51 @@ npm test                    # 46 automated security/functionality tests
 - In production all secrets are required, and the session cookie is `Secure`, so the app must sit behind HTTPS.
 - Set `TRUST_PROXY=1` when a TLS-terminating proxy is in front.
 
+## Deploy to Vercel
+Vercel runs the API as serverless functions: instances are short-lived, share no memory and have no writable disk. So everything that must persist lives in the database:
+- **Data** goes to a hosted Turso (libSQL) database. It is SQLite-compatible, so the schema, CHECK constraints and queries are unchanged.
+- **Sessions** are stored in a `sessions` table. The cookie only carries the signed session ID.
+- **Rate-limit counters** are stored in a `rate_limits` table, so limits hold across instances.
+- **Multi-step writes** (status change plus audit row, SEO approve/reject/publish) run as one atomic batch with guarded `WHERE` clauses, in a single network round trip.
+
+`npm run build:vercel` builds the client and writes a [Build Output API](https://vercel.com/docs/build-output-api/v3) bundle to `.vercel/output`:
+- `static/` holds the React app, served from Vercel's CDN with the same CSP and security headers Helmet sets on the API, plus `X-Robots-Tag: noindex` (set `ALLOW_INDEXING=1` at build time to drop it).
+- `functions/api.func/` holds the whole Express API bundled into one file, with no native modules. It receives every `/api/*` request.
+- `config.json` routes `/api/*` to the function and falls back to `index.html` for client routes.
+
+**One-time setup**
+1. Create a Turso database and token. Pick the region closest to your Vercel function region (Vercel's default is Washington, D.C., `iad1`).
+   ```bash
+   turso db create group-enquiry-desk
+   turso db show group-enquiry-desk --url      # -> DATABASE_URL
+   turso db tokens create group-enquiry-desk   # -> DATABASE_AUTH_TOKEN
+   ```
+2. Import the repository in Vercel. Keep the root directory as the repo root. `vercel.json` sets the install and build commands.
+3. Add these environment variables in the Vercel project settings:
+
+   | Variable | Value |
+   |---|---|
+   | `DATABASE_URL` | the `libsql://...` URL from step 1 |
+   | `DATABASE_AUTH_TOKEN` | the token from step 1 |
+   | `SESSION_SECRET`, `FORM_TOKEN_SECRET`, `IP_HASH_SECRET` | three different random values, 32+ characters each |
+   | `TRUST_PROXY` | `1` (required: without it the `Secure` cookie is never sent and login fails) |
+   | `AI_PROVIDER` | `mock` |
+
+4. Seed the hosted database once, from your machine:
+   ```bash
+   DATABASE_URL=libsql://... DATABASE_AUTH_TOKEN=... npm run seed
+   ```
+   Set `SEED_ADMIN_PASSWORD` and `SEED_STAFF_PASSWORD` for the run too, or the script prints random ones once.
+5. Deploy. Tables are created automatically on the first request, and the step is idempotent.
+
+**Notes**
+- The function runs on the Node version configured in the Vercel project. For a prebuilt deploy from a machine on another version, set `VERCEL_FUNCTION_RUNTIME` (for example `nodejs22.x`) before building.
+- Locally, nothing changes: without `DATABASE_URL` the app uses the SQLite file at `DB_PATH`. On Vercel, a missing `DATABASE_URL` stops startup with a clear error instead of silently losing data.
+- This is a demo with fictional data under real brand names. Keep the `noindex` header, and consider Vercel's deployment protection so only reviewers can open it.
+
 ## Architecture
 ```
-Browser (React SPA)  ──same origin──▶  Express API ──▶ SQLite (WAL)
+Browser (React SPA)  ──same origin──▶  Express API ──▶ libSQL: local SQLite file, or Turso on Vercel
   /enquire/:siteKey   public form        /api/public/*      write-only enquiries, form config
   /admin              staff list         /api/enquiries/*   staff+ (session, CSRF)
   /admin/seo          AI helper          /api/ai/*          admin only (session, CSRF) ──▶ LlmProvider (mock | http stub)
@@ -85,7 +128,7 @@ Browser (React SPA)  ──same origin──▶  Express API ──▶ SQLite (W
 | POST | `/api/ai/seo-drafts/:id/approve \| reject \| publish` | admin CSRF | state machine draft → approved → published |
 
 ## Tests (`npm test`)
-There are 46 automated tests (vitest + supertest, in-memory DB). The four required categories map to these test groups:
+There are 51 automated tests (vitest + supertest, in-memory DB). The four required categories map to these test groups:
 
 | # | Required test | Expected result | Test |
 |---|---|---|---|
@@ -100,6 +143,7 @@ The suite also covers:
 - the status audit trail
 - AI failures (invalid structure, HTML, non-JSON, provider error, timeout → 502 with no draft stored)
 - PII redaction before the provider, claim warnings, reviewer edits being re-validated, and blocking publish without approval
+- serverless behaviour (`serverless.test.ts`): two app instances over one database share sessions, logout and expiry, rate limits and form-token replay protection
 
 **Manual check:** the seed includes an enquiry whose name and message contain `<b>` and `<img onerror>`. In `/admin` they display as literal text.
 
@@ -152,11 +196,11 @@ Sample run (mock provider, fictional Space42 page):
 - the staff list with brand/status filters, pagination and audited status updates
 - the REST API with access control
 - the admin AI helper with mock provider and approval workflow
-- 46 automated tests and the docs
+- 51 automated tests and the docs
+- a Vercel deployment path (Turso database, database-backed sessions and rate limits)
 
 **Not done / limitations:**
 - Not a WordPress plugin (see the stack note above).
-- Sessions and rate limits use in-memory stores (single process). Production needs a persistent session store (e.g. Redis or a DB table) and a shared rate-limit store.
 - No email notifications (not required), no data-retention job, no enquiry export or delete (GDPR-style requests), and no per-brand staff scoping. All staff see all brands.
 - The SPA sets title/meta client-side. Real SEO output must be server-rendered (in WordPress, `wp_head`). The JSON-LD is shown as a preview only.
 - No CAPTCHA. The honeypot, fill time and rate limits are a reasonable baseline, and Turnstile or hCaptcha would be the next layer.
@@ -168,14 +212,14 @@ Sample run (mock provider, fictional Space42 page):
 - **Release:**
   - CI runs `npm ci`, `npm audit`, typecheck and `npm test` on every PR, then builds an immutable artifact with a version tag.
   - Deploy that artifact to staging, smoke-test it (form submit, admin login, status change, AI draft), then promote the same artifact to production.
-- **Backups:** take SQLite online backups (`.backup` / `VACUUM INTO`), at least nightly and before every release. Keep them encrypted off-host with a retention policy, and **test a restore** each month into staging.
+- **Backups:** on Turso, use its point-in-time restore and also export a copy before every release. For a self-hosted SQLite file, take online backups (`.backup` / `VACUUM INTO`), at least nightly and before every release. Keep them encrypted off-host with a retention policy, and **test a restore** each month into staging.
 - **Rollback:**
   - Redeploy the previous artifact tag.
   - Schema changes are additive and backward-compatible (expand → migrate → contract), so the previous version still runs against the new schema. Restore from the pre-release backup only for data corruption.
 
 ## With one more day
 1. Port to an actual WordPress plugin with the same design: custom table, capability, REST nonce.
-2. Persistent session and rate-limit stores, plus structured audit logging.
+2. Structured audit logging.
 3. Per-brand staff permissions.
 4. Retention and deletion tooling for personal data.
 5. Playwright end-to-end tests and an accessibility pass (axe).

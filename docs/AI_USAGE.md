@@ -13,19 +13,25 @@ The brief allows AI for research, suggestions, boilerplate and debugging, and re
 | Planning (architecture, data model, security controls) | AI proposed; candidate approved the plan and chose Node + React |
 | Server code (Express, SQLite, validation, auth, CSRF, AI helper) | AI-generated |
 | React client | AI-generated |
-| Automated tests (46) and end-to-end smoke test | AI-generated and run |
+| Automated tests (51) and end-to-end smoke test | AI-generated and run |
+| Vercel deployment (libSQL/Turso data layer, database-backed sessions and rate limits, Build Output API bundle) | AI-generated, tested locally against a simulated Vercel router |
 | README, incident note, SEO audit template | AI-drafted; the SEO evidence must be gathered by the candidate |
 
 ## Representative prompts (prompt log)
 1. *"[Assessment PDF path] /plan from this folder plan ask project, security will be just access this pdf from outside else in this folder only. Check if pdf anything found security risk alert before execute."*
 2. *"go for node and reactjs"* (choosing the stack instead of WordPress/PHP)
 3. Plan approved, then implementation.
+4. *"install and run project"*
+5. *"make UI good using agents keep main thread for other work"*
+6. *"planning to deploy this online what we can do ?"*, then *"for vercel what we can do ?"* and *"yes for DB will use something and do it"*
 
 ## Security checks and corrections made during the session
 - **PDF checked before reading:** no `/JavaScript`, `/Launch`, `/OpenAction`, embedded files or forms. One hex-name hit was confirmed as a false positive inside a compressed stream.
 - **Dependency advisories:** the first install showed `npm audit` findings (zod high, react-router moderate, vitest/tinypool critical in dev tooling). Dependencies were moved to the patched majors (zod 4, react-router 7, vitest 5) **before** writing code, and the final audit shows 0 vulnerabilities.
 - **A faulty generated test assertion was removed.** It would have matched the letter "A" inside `VALIDATION_ERROR`.
 - **The production smoke test showed** that the `Secure` session cookie is (correctly) not set over plain HTTP. The README now documents that production needs HTTPS and `TRUST_PROXY`.
+- **`better-sqlite3` 11 did not build on Node 26** (it uses a V8 API that was removed). It was replaced by `@libsql/client`, which also made the Vercel deployment possible.
+- **New tests were checked against a deliberate fault.** With the database session store removed, three of the five serverless tests failed as expected.
 - **Live sites were not touched.** The SEO audit was deliberately left as an evidence template instead of AI-written findings, to avoid invented data.
 
 ## Candidate's own verification (to complete honestly)

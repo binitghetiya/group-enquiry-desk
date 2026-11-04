@@ -17,3 +17,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.log
+
+# Vercel build output and local project link
+.vercel/

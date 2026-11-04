@@ -25,7 +25,7 @@ function regenerate(req: Request): Promise<void> {
 
 export function authRouter({ config, db }: AppDeps): Router {
   const router = Router();
-  const loginLimiter = makeLimiter(config.loginLimit, config.ipHashSecret, 'login');
+  const loginLimiter = makeLimiter(db, config.loginLimit, config.ipHashSecret, 'login');
 
   router.post(
     '/login',
@@ -34,7 +34,7 @@ export function authRouter({ config, db }: AppDeps): Router {
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) throw new HttpError(400, 'VALIDATION_ERROR', 'Email and password are required.');
 
-      const user = findUserByEmail(db, parsed.data.email);
+      const user = await findUserByEmail(db, parsed.data.email);
       const valid = await bcrypt.compare(parsed.data.password, user?.passwordHash ?? getDummyHash());
       if (!user || !valid) throw new HttpError(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect.');
 
@@ -45,12 +45,15 @@ export function authRouter({ config, db }: AppDeps): Router {
     }),
   );
 
-  router.get('/me', (req, res) => {
-    const user = req.session.userId ? findUserById(db, req.session.userId) : undefined;
-    if (!user) throw new HttpError(401, 'UNAUTHENTICATED', 'Please sign in.');
-    const csrfToken = req.session.csrfToken ?? issueCsrfToken(req);
-    res.json({ user, csrfToken });
-  });
+  router.get(
+    '/me',
+    asyncHandler(async (req, res) => {
+      const user = req.session.userId ? await findUserById(db, req.session.userId) : undefined;
+      if (!user) throw new HttpError(401, 'UNAUTHENTICATED', 'Please sign in.');
+      const csrfToken = req.session.csrfToken ?? issueCsrfToken(req);
+      res.json({ user, csrfToken });
+    }),
+  );
 
   router.post('/logout', csrfProtect, (req, res, next) => {
     req.session.destroy((err) => {

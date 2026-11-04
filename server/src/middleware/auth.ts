@@ -32,17 +32,18 @@ export function requireRole(db: DB, minRole: Role): RequestHandler {
       next(new HttpError(401, 'UNAUTHENTICATED', 'Please sign in.'));
       return;
     }
-    const user = findUserById(db, userId);
-    if (!user) {
-      req.session.destroy(() => undefined);
-      next(new HttpError(401, 'UNAUTHENTICATED', 'Please sign in.'));
-      return;
-    }
-    if (RANK[user.role] < RANK[minRole]) {
-      next(new HttpError(403, 'FORBIDDEN', 'You do not have permission to do this.'));
-      return;
-    }
-    req.user = user;
-    next();
+    findUserById(db, userId).then((user) => {
+      if (!user) {
+        req.session.destroy(() => undefined);
+        next(new HttpError(401, 'UNAUTHENTICATED', 'Please sign in.'));
+        return;
+      }
+      if (RANK[user.role] < RANK[minRole]) {
+        next(new HttpError(403, 'FORBIDDEN', 'You do not have permission to do this.'));
+        return;
+      }
+      req.user = user;
+      next();
+    }, next);
   };
 }

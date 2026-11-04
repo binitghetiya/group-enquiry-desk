@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api, ApiError, type PublishedSeo } from '../api';
+import { Alert, EmptyState, Icon, LoadingState } from '../components/ui';
 
 interface PageData {
   pageRef: string;
@@ -38,8 +39,22 @@ export function PublicPage() {
     setMetaDescription(page.seo?.metaDescription ?? page.description.slice(0, 155));
   }, [page]);
 
-  if (error) return <p className="alert alert-error">{error}</p>;
-  if (!page) return <p className="muted">Loading…</p>;
+  if (error) {
+    return (
+      <div className="panel article">
+        <EmptyState icon="file" title="This page is not available" action={<Link to="/" className="btn btn-secondary">Back to home</Link>}>
+          <p role="alert">{error}</p>
+        </EmptyState>
+      </div>
+    );
+  }
+  if (!page) {
+    return (
+      <div className="panel article">
+        <LoadingState label="Loading page…" />
+      </div>
+    );
+  }
 
   const faqJsonLd = page.seo && {
     '@context': 'https://schema.org',
@@ -52,36 +67,52 @@ export function PublicPage() {
   };
 
   return (
-    <article className="panel">
-      <p className="muted">{page.brand} · fictional demo page</p>
-      <h1>{page.title}</h1>
-      <p>{page.description}</p>
+    <article className="panel article">
+      <p className="eyebrow">
+        {page.brand} <span aria-hidden="true">·</span> fictional demo page
+      </p>
+      <h1 className="article-title">{page.title}</h1>
+      <p className="lead">{page.description}</p>
 
       {page.seo ? (
         <>
-          <h2>Frequently asked questions</h2>
+          <h2 className="article-section-title">Frequently asked questions</h2>
           <dl className="faq">
             {page.seo.faqs.map((f) => (
-              <div key={f.question}>
+              <div key={f.question} className="faq-item">
                 <dt>{f.question}</dt>
                 <dd>{f.answer}</dd>
               </div>
             ))}
           </dl>
-          <details>
-            <summary>SEO metadata in use (published {new Date(page.seo.publishedAt).toLocaleString()})</summary>
-            <p>
-              <strong>Title:</strong> {page.seo.seoTitle}
-            </p>
-            <p>
-              <strong>Meta description:</strong> {page.seo.metaDescription}
-            </p>
-            <p className="hint">FAQPage JSON-LD that a server-rendered page would emit in &lt;head&gt;:</p>
-            <pre className="code">{JSON.stringify(faqJsonLd, null, 2)}</pre>
+          <details className="disclosure">
+            <summary>
+              <Icon name="chevron-right" className="disclosure-icon" />
+              <span>
+                SEO metadata in use{' '}
+                <span className="disclosure-meta">(published {new Date(page.seo.publishedAt).toLocaleString()})</span>
+              </span>
+            </summary>
+            <div className="disclosure-body">
+              <dl className="meta-list">
+                <div>
+                  <dt>Title</dt>
+                  <dd>{page.seo.seoTitle}</dd>
+                </div>
+                <div>
+                  <dt>Meta description</dt>
+                  <dd>{page.seo.metaDescription}</dd>
+                </div>
+              </dl>
+              <p className="hint">FAQPage JSON-LD that a server-rendered page would emit in &lt;head&gt;:</p>
+              <pre className="code">{JSON.stringify(faqJsonLd, null, 2)}</pre>
+            </div>
           </details>
         </>
       ) : (
-        <p className="alert alert-info">No SEO metadata has been approved and published for this page yet.</p>
+        <Alert tone="info">
+          <p>No SEO metadata has been approved and published for this page yet.</p>
+        </Alert>
       )}
     </article>
   );

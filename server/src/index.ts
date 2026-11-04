@@ -4,11 +4,11 @@ import { loadConfig } from './config/env';
 import { openDb } from './db/db';
 
 const config = loadConfig();
-const db = openDb(config.dbPath);
+const db = await openDb(config.database);
 const llm = createProvider(config.ai);
 const app = createApp({ config, db, llm });
 
-// Bind to loopback only: this is a local assessment prototype.
+// Bind to loopback only: this is a local assessment prototype. Vercel uses src/vercel.ts instead.
 const server = app.listen(config.port, '127.0.0.1', () => {
   console.log(`[server] Group Enquiry Desk API on http://127.0.0.1:${config.port} (AI provider: ${llm.name})`);
 });

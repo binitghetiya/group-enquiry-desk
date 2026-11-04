@@ -5,15 +5,15 @@ import { getDemoPage } from '../config/pages';
 import { insertEnquiry } from '../db/enquiries';
 import { getPublishedSeo } from '../db/seo';
 import { signFormToken, verifyFormToken } from '../lib/formToken';
-import { HttpError, validationError } from '../lib/http';
+import { asyncHandler, HttpError, validationError } from '../lib/http';
 import { hashIp } from '../lib/ipHash';
 import { makeLimiter } from '../middleware/rateLimit';
 import { submitEnquirySchema } from '../validation/enquiry';
 
 export function publicRouter({ config, db }: AppDeps): Router {
   const router = Router();
-  const readLimiter = makeLimiter(config.publicReadLimit, config.ipHashSecret, 'public-read');
-  const submitLimiter = makeLimiter(config.publicSubmitLimit, config.ipHashSecret, 'public-submit');
+  const readLimiter = makeLimiter(db, config.publicReadLimit, config.ipHashSecret, 'public-read');
+  const submitLimiter = makeLimiter(db, config.publicSubmitLimit, config.ipHashSecret, 'public-submit');
 
   /** Form configuration for a page. The brand comes from server config, never from the client. */
   router.get('/form-config/:siteKey', readLimiter, (req, res) => {
@@ -27,7 +27,7 @@ export function publicRouter({ config, db }: AppDeps): Router {
   });
 
   /** Public submission. Write-only: there is no public endpoint that returns enquiries. */
-  router.post('/enquiries', submitLimiter, (req, res) => {
+  router.post('/enquiries', submitLimiter, asyncHandler(async (req, res) => {
     const body: Record<string, unknown> =
       req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
 
@@ -58,8 +58,7 @@ export function publicRouter({ config, db }: AppDeps): Router {
       });
     }
 
-    try {
-      insertEnquiry(db, {
+    const id = await insertEnquiry(db, {
         brand: token.brand,
         fullName: input.fullName,
         email: input.email,
@@ -68,19 +67,16 @@ export function publicRouter({ config, db }: AppDeps): Router {
         preferredDate: input.preferredDate,
         ipHash: hashIp(config.ipHashSecret, req.ip),
         formNonce: token.nonce,
-      });
-    } catch (err) {
-      if ((err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        throw new HttpError(409, 'ALREADY_SUBMITTED', 'This form was already submitted. Reload the page to send another enquiry.');
-      }
-      throw err;
+    });
+    if (id === undefined) {
+      throw new HttpError(409, 'ALREADY_SUBMITTED', 'This form was already submitted. Reload the page to send another enquiry.');
     }
 
     res.status(201).json({ ok: true });
-  });
+  }));
 
   /** Published (human-approved) SEO for a demo page. Drafts are never exposed here. */
-  router.get('/pages/:pageRef', readLimiter, (req, res) => {
+  router.get('/pages/:pageRef', readLimiter, asyncHandler(async (req, res) => {
     const page = getDemoPage(req.params.pageRef ?? '');
     if (!page) throw new HttpError(404, 'NOT_FOUND', 'Page not found.');
     res.json({
@@ -88,9 +84,9 @@ export function publicRouter({ config, db }: AppDeps): Router {
       brand: BRANDS[page.brand].name,
       title: page.title,
       description: page.description,
-      seo: getPublishedSeo(db, page.pageRef) ?? null,
+      seo: (await getPublishedSeo(db, page.pageRef)) ?? null,
     });
-  });
+  }));
 
   return router;
 }

@@ -69,3 +69,21 @@ CREATE TABLE IF NOT EXISTS page_seo (
   published_at     TEXT NOT NULL DEFAULT ${NOW}
 );
 `;
+
+/** Server-side session data for express-session. Only the opaque session ID lives in the cookie. */
+export const SESSIONS_SQL = `
+CREATE TABLE IF NOT EXISTS sessions (
+  sid        TEXT PRIMARY KEY,
+  sess       TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);
+
+-- Fixed-window counters for express-rate-limit, shared by every serverless instance.
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key      TEXT PRIMARY KEY,
+  hits     INTEGER NOT NULL,
+  reset_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_reset ON rate_limits (reset_at);
+`;

@@ -18,7 +18,7 @@ const fakeProvider = (impl: LlmProvider['generateSeo']): LlmProvider => ({ name:
 
 describe('AI SEO helper - access control', () => {
   it('is admin-only: anonymous 401, staff 403', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     await request(app).post('/api/ai/seo-drafts').send(request_).expect(401);
     const { agent, csrf } = await login(app, STAFF);
     await agent.get('/api/ai/pages').expect(403);
@@ -27,7 +27,7 @@ describe('AI SEO helper - access control', () => {
   });
 
   it('requires CSRF for admin mutations', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const { agent } = await login(app, ADMIN);
     await agent.post('/api/ai/seo-drafts').send(request_).expect(403);
   });
@@ -35,7 +35,7 @@ describe('AI SEO helper - access control', () => {
 
 describe('AI SEO helper - human approval workflow', () => {
   it('generates a valid draft that is not public until approved and published', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const { agent, csrf } = await login(app, ADMIN);
 
     const created = await agent.post('/api/ai/seo-drafts').set('x-csrf-token', csrf).send(request_).expect(201);
@@ -63,7 +63,7 @@ describe('AI SEO helper - human approval workflow', () => {
   });
 
   it('validates reviewer edits and flags unsupported claims', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const { agent, csrf } = await login(app, ADMIN);
     const { body } = await agent.post('/api/ai/seo-drafts').set('x-csrf-token', csrf).send(request_).expect(201);
     const id = body.draft.id;
@@ -79,7 +79,7 @@ describe('AI SEO helper - human approval workflow', () => {
   });
 
   it('rejects unknown pages and HTML in the request', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const { agent, csrf } = await login(app, ADMIN);
     await agent.post('/api/ai/seo-drafts').set('x-csrf-token', csrf).send({ ...request_, pageRef: 'nope' }).expect(400);
     await agent.post('/api/ai/seo-drafts').set('x-csrf-token', csrf).send({ ...request_, pageTitle: '<b>x</b>' }).expect(400);
@@ -96,11 +96,11 @@ describe('AI SEO helper - safe failure handling', () => {
   ];
 
   it.each(cases)('%s -> 502 and no draft stored', async (_label, llm, code) => {
-    const { app, db } = setup({ llm, config: { ai: { provider: 'mock', timeoutMs: 100 } } });
+    const { app, db } = await setup({ llm, config: { ai: { provider: 'mock', timeoutMs: 100 } } });
     const { agent, csrf } = await login(app, ADMIN);
     const res = await agent.post('/api/ai/seo-drafts').set('x-csrf-token', csrf).send(request_).expect(502);
     expect(res.body.error.code).toBe(code);
-    expect((db.prepare('SELECT COUNT(*) n FROM seo_drafts').get() as { n: number }).n).toBe(0);
+    expect(((await db.get('SELECT COUNT(*) n FROM seo_drafts')) as { n: number }).n).toBe(0);
   });
 
   it('redacts personal data before it reaches the provider', async () => {
@@ -110,7 +110,7 @@ describe('AI SEO helper - safe failure handling', () => {
       seen = input;
       return mock.generateSeo(input, opts);
     });
-    const { app } = setup({ llm: spy });
+    const { app } = await setup({ llm: spy });
     const { agent, csrf } = await login(app, ADMIN);
     const res = await agent
       .post('/api/ai/seo-drafts')

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { LlmProvider } from './ai/provider';
 import type { AppConfig } from './config/env';
 import type { DB } from './db/db';
+import { DbSessionStore } from './db/sessionStore';
 import { requireRole } from './middleware/auth';
 import { csrfProtect } from './middleware/csrf';
 import { apiNotFound, errorHandler, requestId } from './middleware/errors';
@@ -55,7 +56,8 @@ export function createApp(deps: AppDeps): express.Express {
       resave: false,
       saveUninitialized: false,
       cookie: { httpOnly: true, sameSite: 'strict', secure: config.isProd, maxAge: 8 * 60 * 60 * 1000 },
-      // Default MemoryStore is fine for a single-process prototype; use a persistent store in production.
+      // Sessions live in the database so they survive restarts and are shared by serverless instances.
+      store: new DbSessionStore(db),
     }),
   );
 

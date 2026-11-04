@@ -5,7 +5,7 @@ import { MockLlmProvider } from '../src/ai/mockProvider';
 import type { LlmProvider } from '../src/ai/provider';
 import { createApp } from '../src/app';
 import type { AppConfig } from '../src/config/env';
-import { openDb } from '../src/db/db';
+import { openDb, type DB } from '../src/db/db';
 import { createUser } from '../src/db/users';
 
 // Fictional test credentials for an in-memory database only.
@@ -18,7 +18,7 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   return {
     isProd: false,
     port: 0,
-    dbPath: ':memory:',
+    database: { url: ':memory:' },
     trustProxy: 0,
     sessionSecret: 'test-session-secret-0123456789abcdef',
     formTokenSecret: 'test-form-token-secret-0123456789abcd',
@@ -33,11 +33,17 @@ export function testConfig(overrides: Partial<AppConfig> = {}): AppConfig {
   };
 }
 
-export function setup(opts: { config?: Partial<AppConfig>; llm?: LlmProvider } = {}) {
+/**
+ * Each call gets its own fresh in-memory database, unless `db` is passed: that simulates a second
+ * serverless instance sharing the same hosted database.
+ */
+export async function setup(opts: { config?: Partial<AppConfig>; llm?: LlmProvider; db?: DB } = {}) {
   const config = testConfig(opts.config);
-  const db = openDb(':memory:');
-  createUser(db, ADMIN.email, bcrypt.hashSync(ADMIN.password, 4), 'admin');
-  createUser(db, STAFF.email, bcrypt.hashSync(STAFF.password, 4), 'staff');
+  const db = opts.db ?? (await openDb(config.database));
+  if (!opts.db) {
+    await createUser(db, ADMIN.email, bcrypt.hashSync(ADMIN.password, 4), 'admin');
+    await createUser(db, STAFF.email, bcrypt.hashSync(STAFF.password, 4), 'staff');
+  }
   const app = createApp({ config, db, llm: opts.llm ?? new MockLlmProvider() });
   return { app, db, config };
 }

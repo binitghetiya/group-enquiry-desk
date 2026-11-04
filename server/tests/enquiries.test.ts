@@ -9,7 +9,7 @@ async function seedOne(app: Parameters<typeof getFormToken>[0], siteKey = 'ipstu
 
 describe('TEST 3 - unauthorised access', () => {
   it('rejects anonymous list and update requests with 401', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     await seedOne(app);
     const list = await request(app).get('/api/enquiries').expect(401);
     expect(list.body.error.code).toBe('UNAUTHENTICATED');
@@ -19,21 +19,21 @@ describe('TEST 3 - unauthorised access', () => {
   });
 
   it('uses one generic message for wrong password and unknown email', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const a = await request(app).post('/api/auth/login').send({ email: STAFF.email, password: 'wrong' }).expect(401);
     const b = await request(app).post('/api/auth/login').send({ email: 'nobody@example.test', password: 'wrong' }).expect(401);
     expect(a.body.error.message).toBe(b.body.error.message);
   });
 
   it('rate-limits login attempts', async () => {
-    const { app } = setup({ config: { loginLimit: { windowMs: 60_000, limit: 2 } } });
+    const { app } = await setup({ config: { loginLimit: { windowMs: 60_000, limit: 2 } } });
     await request(app).post('/api/auth/login').send({ email: STAFF.email, password: 'x' }).expect(401);
     await request(app).post('/api/auth/login').send({ email: STAFF.email, password: 'x' }).expect(401);
     await request(app).post('/api/auth/login').send(STAFF).expect(429);
   });
 
   it('invalidates access after logout', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const { agent, csrf } = await login(app, STAFF);
     await agent.get('/api/enquiries').expect(200);
     await agent.post('/api/auth/logout').set('x-csrf-token', csrf).expect(204);
@@ -41,7 +41,7 @@ describe('TEST 3 - unauthorised access', () => {
   });
 
   it('issues a new session id on login (no session fixation)', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const agent = request.agent(app);
     const first = await agent.post('/api/auth/login').send(STAFF).expect(200);
     const second = await agent.post('/api/auth/login').send(STAFF).expect(200);
@@ -55,7 +55,7 @@ describe('TEST 3 - unauthorised access', () => {
 
 describe('authorised staff listing (REST)', () => {
   it('lists enquiries without internal fields', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     await seedOne(app);
     const { agent } = await login(app, STAFF);
     const res = await agent.get('/api/enquiries').expect(200);
@@ -67,7 +67,7 @@ describe('authorised staff listing (REST)', () => {
   });
 
   it('filters by brand and status, and validates query parameters', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     await seedOne(app, 'ipstudios', 'live_production');
     await seedOne(app, 'jazzbar', 'private_event');
     const { agent } = await login(app, STAFF);
@@ -85,7 +85,7 @@ describe('authorised staff listing (REST)', () => {
 
 describe('status updates', () => {
   it('requires the CSRF token', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     await seedOne(app);
     const { agent } = await login(app, STAFF);
     const res = await agent.patch('/api/enquiries/1/status').send({ status: 'closed' }).expect(403);
@@ -94,17 +94,17 @@ describe('status updates', () => {
   });
 
   it('updates status and writes an audit record', async () => {
-    const { app, db } = setup();
+    const { app, db } = await setup();
     await seedOne(app);
     const { agent, csrf } = await login(app, STAFF);
     const res = await agent.patch('/api/enquiries/1/status').set('x-csrf-token', csrf).send({ status: 'in_progress' }).expect(200);
     expect(res.body.item.status).toBe('in_progress');
-    const audit = db.prepare('SELECT from_status, to_status FROM enquiry_status_audit').all();
+    const audit = await db.all('SELECT from_status, to_status FROM enquiry_status_audit');
     expect(audit).toEqual([{ from_status: 'new', to_status: 'in_progress' }]);
   });
 
   it('validates status values and ids', async () => {
-    const { app } = setup();
+    const { app } = await setup();
     await seedOne(app);
     const { agent, csrf } = await login(app, ADMIN);
     await agent.patch('/api/enquiries/1/status').set('x-csrf-token', csrf).send({ status: 'deleted' }).expect(400);

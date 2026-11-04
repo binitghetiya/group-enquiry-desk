@@ -1,5 +1,5 @@
 import type { BrandId } from '../config/brands';
-import type { DB } from './db';
+import { NOW_SQL, type DB } from './db';
 
 export const ENQUIRY_STATUSES = ['new', 'in_progress', 'closed'] as const;
 export type EnquiryStatus = (typeof ENQUIRY_STATUSES)[number];
@@ -32,14 +32,27 @@ export interface NewEnquiry {
   formNonce: string;
 }
 
-export function insertEnquiry(db: DB, e: NewEnquiry): number {
-  const info = db
-    .prepare(
-      `INSERT INTO enquiries (brand, full_name, email, enquiry_type, message, preferred_date, ip_hash, form_nonce)
-       VALUES (@brand, @fullName, @email, @enquiryType, @message, @preferredDate, @ipHash, @formNonce)`,
-    )
-    .run({ ...e, preferredDate: e.preferredDate ?? null });
-  return Number(info.lastInsertRowid);
+/**
+ * Inserts an enquiry. Returns undefined when the form nonce was already used (token replay):
+ * the UNIQUE constraint on form_nonce makes the check atomic without parsing driver error codes.
+ */
+export async function insertEnquiry(db: DB, e: NewEnquiry): Promise<number | undefined> {
+  const info = await db.run(
+    `INSERT INTO enquiries (brand, full_name, email, enquiry_type, message, preferred_date, ip_hash, form_nonce)
+     VALUES (@brand, @fullName, @email, @enquiryType, @message, @preferredDate, @ipHash, @formNonce)
+     ON CONFLICT (form_nonce) DO NOTHING`,
+    {
+      brand: e.brand,
+      fullName: e.fullName,
+      email: e.email,
+      enquiryType: e.enquiryType,
+      message: e.message,
+      preferredDate: e.preferredDate ?? null,
+      ipHash: e.ipHash,
+      formNonce: e.formNonce,
+    },
+  );
+  return info.changes === 1 ? info.lastInsertRowid : undefined;
 }
 
 export interface ListFilter {
@@ -49,53 +62,51 @@ export interface ListFilter {
   limit: number;
 }
 
-export function listEnquiries(db: DB, f: ListFilter): { items: EnquiryDto[]; total: number } {
+export async function listEnquiries(db: DB, f: ListFilter): Promise<{ items: EnquiryDto[]; total: number }> {
   // Fixed SQL with bound parameters; filters are optional via "IS NULL OR".
   const where = `WHERE (@brand IS NULL OR brand = @brand) AND (@status IS NULL OR status = @status)`;
   const params = { brand: f.brand ?? null, status: f.status ?? null };
-  const items = db
-    .prepare(
+  const [items, count] = await Promise.all([
+    db.all<EnquiryDto>(
       `SELECT ${PUBLIC_COLUMNS} FROM enquiries ${where}
        ORDER BY created_at DESC, id DESC LIMIT @limit OFFSET @offset`,
-    )
-    .all({ ...params, limit: f.limit, offset: (f.page - 1) * f.limit }) as EnquiryDto[];
-  const { total } = db.prepare(`SELECT COUNT(*) AS total FROM enquiries ${where}`).get(params) as {
-    total: number;
-  };
-  return { items, total };
+      { ...params, limit: f.limit, offset: (f.page - 1) * f.limit },
+    ),
+    db.get<{ total: number }>(`SELECT COUNT(*) AS total FROM enquiries ${where}`, params),
+  ]);
+  return { items, total: count?.total ?? 0 };
 }
 
-export function getEnquiry(db: DB, id: number): EnquiryDto | undefined {
-  return db.prepare(`SELECT ${PUBLIC_COLUMNS} FROM enquiries WHERE id = ?`).get(id) as
-    | EnquiryDto
-    | undefined;
+export function getEnquiry(db: DB, id: number): Promise<EnquiryDto | undefined> {
+  return db.get(`SELECT ${PUBLIC_COLUMNS} FROM enquiries WHERE id = ?`, [id]);
 }
 
-/** Updates status and writes an audit row in one transaction. Returns undefined if not found. */
-export function updateEnquiryStatus(
+/**
+ * Updates status and writes an audit row atomically. The audit row is written first so it can
+ * read the old status, and both statements only act when the status really changes.
+ * Returns undefined if the enquiry does not exist.
+ */
+export async function updateEnquiryStatus(
   db: DB,
   id: number,
   status: EnquiryStatus,
   userId: number,
-): EnquiryDto | undefined {
-  const tx = db.transaction(() => {
-    const current = db.prepare(`SELECT status FROM enquiries WHERE id = ?`).get(id) as
-      | { status: EnquiryStatus }
-      | undefined;
-    if (!current) return undefined;
-    if (current.status !== status) {
-      db.prepare(
-        `UPDATE enquiries SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?`,
-      ).run(status, id);
-      db.prepare(
-        `INSERT INTO enquiry_status_audit (enquiry_id, from_status, to_status, user_id) VALUES (?, ?, ?, ?)`,
-      ).run(id, current.status, status, userId);
-    }
-    return getEnquiry(db, id);
-  });
-  return tx();
+): Promise<EnquiryDto | undefined> {
+  const [, , selected] = await db.batch([
+    {
+      sql: `INSERT INTO enquiry_status_audit (enquiry_id, from_status, to_status, user_id)
+            SELECT id, status, @status, @userId FROM enquiries WHERE id = @id AND status <> @status`,
+      args: { id, status, userId },
+    },
+    {
+      sql: `UPDATE enquiries SET status = @status, updated_at = ${NOW_SQL} WHERE id = @id AND status <> @status`,
+      args: { id, status },
+    },
+    { sql: `SELECT ${PUBLIC_COLUMNS} FROM enquiries WHERE id = ?`, args: [id] },
+  ]);
+  return selected?.rows[0] as EnquiryDto | undefined;
 }
 
-export function countEnquiries(db: DB): number {
-  return (db.prepare(`SELECT COUNT(*) AS n FROM enquiries`).get() as { n: number }).n;
+export async function countEnquiries(db: DB): Promise<number> {
+  return (await db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM enquiries`))?.n ?? 0;
 }

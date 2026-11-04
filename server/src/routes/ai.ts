@@ -35,16 +35,18 @@ function sendTransition(res: import('express').Response, result: TransitionResul
 export function aiRouter({ config, db, llm }: AppDeps): Router {
   const router = Router();
 
-  router.get('/pages', (_req, res) => {
+  router.get('/pages', asyncHandler(async (_req, res) => {
     res.json({
       provider: llm.name,
-      pages: Object.values(DEMO_PAGES).map((p) => ({
-        ...p,
-        brandName: BRANDS[p.brand].name,
-        published: getPublishedSeo(db, p.pageRef) ?? null,
-      })),
+      pages: await Promise.all(
+        Object.values(DEMO_PAGES).map(async (p) => ({
+          ...p,
+          brandName: BRANDS[p.brand].name,
+          published: (await getPublishedSeo(db, p.pageRef)) ?? null,
+        })),
+      ),
     });
-  });
+  }));
 
   router.post(
     '/seo-drafts',
@@ -66,7 +68,7 @@ export function aiRouter({ config, db, llm }: AppDeps): Router {
         throw err;
       }
 
-      const id = createDraft(db, {
+      const id = await createDraft(db, {
         pageRef: page.pageRef,
         brand: page.brand,
         input: result.input,
@@ -75,18 +77,18 @@ export function aiRouter({ config, db, llm }: AppDeps): Router {
         provider: llm.name,
         userId: req.user!.id,
       });
-      res.status(201).json({ draft: getDraft(db, id), redactions: result.redactions });
+      res.status(201).json({ draft: await getDraft(db, id), redactions: result.redactions });
     }),
   );
 
-  router.get('/seo-drafts', (req, res) => {
+  router.get('/seo-drafts', asyncHandler(async (req, res) => {
     const q = listQuerySchema.safeParse(req.query);
     if (!q.success) throw validationError(q.error);
-    res.json({ drafts: listDrafts(db, q.data.pageRef) });
-  });
+    res.json({ drafts: await listDrafts(db, q.data.pageRef) });
+  }));
 
   /** Human approval. The reviewer may edit the text; edits go through the same validation. */
-  router.post('/seo-drafts/:id/approve', (req, res) => {
+  router.post('/seo-drafts/:id/approve', asyncHandler(async (req, res) => {
     const params = idParamSchema.safeParse(req.params);
     if (!params.success) throw validationError(params.error);
     const body = approveSchema.safeParse(req.body ?? {});
@@ -94,24 +96,24 @@ export function aiRouter({ config, db, llm }: AppDeps): Router {
 
     let edited;
     if (body.data.output) {
-      const draft = getDraft(db, params.data.id);
+      const draft = await getDraft(db, params.data.id);
       const source = draft ? `${draft.input.brandName}\n${draft.input.pageTitle}\n${draft.input.description}` : '';
       edited = { output: body.data.output, warnings: flagUnverifiedClaims(source, body.data.output) };
     }
-    sendTransition(res, approveDraft(db, params.data.id, req.user!.id, edited));
-  });
+    sendTransition(res, await approveDraft(db, params.data.id, req.user!.id, edited));
+  }));
 
-  router.post('/seo-drafts/:id/reject', (req, res) => {
+  router.post('/seo-drafts/:id/reject', asyncHandler(async (req, res) => {
     const params = idParamSchema.safeParse(req.params);
     if (!params.success) throw validationError(params.error);
-    sendTransition(res, rejectDraft(db, params.data.id, req.user!.id));
-  });
+    sendTransition(res, await rejectDraft(db, params.data.id, req.user!.id));
+  }));
 
-  router.post('/seo-drafts/:id/publish', (req, res) => {
+  router.post('/seo-drafts/:id/publish', asyncHandler(async (req, res) => {
     const params = idParamSchema.safeParse(req.params);
     if (!params.success) throw validationError(params.error);
-    sendTransition(res, publishDraft(db, params.data.id, req.user!.id));
-  });
+    sendTransition(res, await publishDraft(db, params.data.id, req.user!.id));
+  }));
 
   return router;
 }

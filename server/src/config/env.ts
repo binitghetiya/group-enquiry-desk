@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { localDbUrl, type DbConnection } from '../db/db';
 
 // Load the repo-root .env (never committed). Real environment variables take precedence.
 dotenv.config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
@@ -13,7 +14,8 @@ export interface RateLimitConfig {
 export interface AppConfig {
   isProd: boolean;
   port: number;
-  dbPath: string;
+  /** Turso URL + token in production, or a local SQLite file built from DB_PATH. */
+  database: DbConnection;
   /** Number of trusted reverse-proxy hops (0 = use the socket address). */
   trustProxy: number;
   sessionSecret: string;
@@ -51,13 +53,22 @@ function secret(env: NodeJS.ProcessEnv, name: string, isProd: boolean): string {
   return randomBytes(32).toString('hex');
 }
 
+function database(env: NodeJS.ProcessEnv): DbConnection {
+  if (env.DATABASE_URL) return { url: env.DATABASE_URL, authToken: env.DATABASE_AUTH_TOKEN || undefined };
+  if (env.VERCEL) {
+    // Vercel's filesystem is read-only and per-instance: a local file would silently lose data.
+    throw new Error('DATABASE_URL must point to a hosted database (e.g. Turso) when running on Vercel.');
+  }
+  return { url: localDbUrl(env.DB_PATH || 'data/enquiries.db') };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const isProd = env.NODE_ENV === 'production';
   const provider = env.AI_PROVIDER === 'http' ? 'http' : 'mock';
   return {
     isProd,
     port: int(env.PORT, 4000),
-    dbPath: env.DB_PATH || 'data/enquiries.db',
+    database: database(env),
     trustProxy: int(env.TRUST_PROXY, 0),
     sessionSecret: secret(env, 'SESSION_SECRET', isProd),
     formTokenSecret: secret(env, 'FORM_TOKEN_SECRET', isProd),
