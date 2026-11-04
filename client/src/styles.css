@@ -1,0 +1,128 @@
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --text: #1b1f24;
+  --muted: #5b6573;
+  --border: #d8dde3;
+  --primary: #2847d8;
+  --primary-text: #ffffff;
+  --error: #b42318;
+  --error-bg: #fdecea;
+  --info-bg: #eaf0ff;
+  --warn-bg: #fff6e0;
+  --success-bg: #e8f6ee;
+  --radius: 8px;
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111418;
+    --surface: #1a1e24;
+    --text: #e8eaed;
+    --muted: #9aa4b2;
+    --border: #2f3540;
+    --primary: #7b93ff;
+    --primary-text: #0b0d10;
+    --error: #ff8a80;
+    --error-bg: #3a1d1b;
+    --info-bg: #1c2540;
+    --warn-bg: #3a3015;
+    --success-bg: #17301f;
+  }
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+a { color: var(--primary); }
+h1 { font-size: 1.6rem; margin: 0 0 0.75rem; }
+h2 { font-size: 1.2rem; margin: 1.25rem 0 0.5rem; }
+h3 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 1.25rem 16px 3rem; }
+.site-header {
+  display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
+  padding: 0.75rem 16px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.site-header nav { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.site-header nav a.active { font-weight: 600; }
+.brand-mark { font-weight: 700; text-decoration: none; color: var(--text); }
+.user-chip { font-size: 0.85rem; }
+.site-footer { text-align: center; padding: 1.5rem 16px; font-size: 0.85rem; }
+
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+.narrow { max-width: 640px; margin: 0 auto; }
+.muted { color: var(--muted); }
+.hint { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0 0; }
+.hint.over { color: var(--error); font-weight: 600; }
+
+.field { margin-bottom: 1rem; }
+label { display: block; font-weight: 600; margin-bottom: 0.3rem; }
+input, select, textarea {
+  width: 100%; font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px; padding: 0.55rem 0.65rem;
+}
+textarea { resize: vertical; }
+input[aria-invalid='true'], select[aria-invalid='true'], textarea[aria-invalid='true'] { border-color: var(--error); }
+:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.field-error { color: var(--error); font-size: 0.9rem; margin: 0.3rem 0 0; }
+.checkbox { display: flex; gap: 0.5rem; align-items: flex-start; font-weight: 400; margin: 1rem 0; }
+.checkbox input { width: auto; margin-top: 0.3rem; }
+
+/* Honeypot - off-screen rather than display:none so naive bots still fill it */
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.btn {
+  font: inherit; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 6px; padding: 0.55rem 1rem;
+}
+.btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-text); font-weight: 600; }
+.btn-small { padding: 0.3rem 0.7rem; font-size: 0.9rem; }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--primary); font: inherit; cursor: pointer; text-decoration: underline; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.75rem; }
+
+.alert { border-radius: 6px; padding: 0.75rem 1rem; margin: 0 0 1rem; }
+.alert ul { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.alert-error { background: var(--error-bg); color: var(--error); }
+.alert-info { background: var(--info-bg); }
+.alert-warn { background: var(--warn-bg); }
+.alert-success { background: var(--success-bg); }
+
+.link-grid { list-style: none; padding: 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.card-link { display: block; padding: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); text-decoration: none; font-weight: 600; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-bottom: 1rem; }
+.filters label { font-weight: 600; min-width: 180px; }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+table.enquiries { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+table.enquiries th, table.enquiries td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.enquiries select { min-width: 130px; }
+.message-cell { max-width: 360px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pager { display: flex; gap: 0.75rem; align-items: center; justify-content: center; margin-top: 1rem; }
+
+.grid-2 { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+.faq-edit { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 0.75rem; padding: 0.5rem 0.75rem 0.75rem; }
+.faq-edit input, .faq-edit textarea { margin-bottom: 0.5rem; }
+.draft-list { list-style: none; padding: 0; margin: 0; }
+.draft-list li { padding: 0.25rem 0; }
+.badge { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid var(--border); }
+.badge-approved { background: var(--info-bg); }
+.badge-published { background: var(--success-bg); }
+.badge-rejected { background: var(--error-bg); }
+.faq dt { font-weight: 600; margin-top: 0.75rem; }
+.faq dd { margin: 0.25rem 0 0; }
+.code { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; overflow-x: auto; font-size: 0.82rem; }
+
+/* Mobile: table rows become cards */
+@media (max-width: 720px) {
+  table.enquiries thead { position: absolute; left: -10000px; }
+  table.enquiries, table.enquiries tbody, table.enquiries tr, table.enquiries td { display: block; width: 100%; }
+  table.enquiries tr { border-bottom: 2px solid var(--border); padding: 0.5rem 0; }
+  table.enquiries td { border: 0; padding: 0.3rem 0.75rem; }
+  table.enquiries td::before { content: attr(data-label); display: block; font-size: 0.75rem; color: var(--muted); font-weight: 600; }
+  .message-cell { max-width: none; }
+}
