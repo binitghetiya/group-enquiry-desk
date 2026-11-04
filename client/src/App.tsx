@@ -62,7 +62,7 @@ function PublicHeader() {
           ) : (
             <NavLink to="/admin/login" className="btn btn-secondary btn-sm">
               <Icon name="lock" />
-              <span>Staff sign in</span>
+              <span>Sign in</span>
             </NavLink>
           )}
         </nav>

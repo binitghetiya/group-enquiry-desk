@@ -14,7 +14,7 @@ export function Login() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    document.title = 'Staff sign in - Group Enquiry Desk';
+    document.title = 'Admin & staff sign in - Group Enquiry Desk';
   }, []);
 
   const target = safeAdminPath((location.state as { from?: unknown } | null)?.from);
@@ -40,7 +40,7 @@ export function Login() {
       <section className="panel auth-card" aria-labelledby="login-title">
         <div className="auth-head">
           <LogoMark />
-          <h1 id="login-title">Staff sign in</h1>
+          <h1 id="login-title">Admin &amp; staff sign in</h1>
           <p className="muted">Sign in to review enquiries for all five brands.</p>
         </div>
         {error && (

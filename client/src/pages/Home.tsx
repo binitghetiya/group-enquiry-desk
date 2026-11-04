@@ -47,7 +47,7 @@ export function Home() {
             <span>Open the enquiry admin</span>
           </Link>
         </div>
-        <p className="hero-note">The admin area requires a staff sign-in.</p>
+        <p className="hero-note">The admin area requires an admin or staff sign-in.</p>
       </section>
 
       <section className="section" aria-labelledby="forms">
