@@ -1,9 +1,12 @@
+import './config/dotenv';
+import { fileURLToPath } from 'node:url';
 import { createProvider } from './ai/provider';
 import { createApp } from './app';
 import { loadConfig } from './config/env';
 import { openDb } from './db/db';
 
-const config = loadConfig();
+// Local and self-hosted runs serve the built React app from the same origin (production only).
+const config = { ...loadConfig(), clientDist: fileURLToPath(new URL('../../client/dist', import.meta.url)) };
 const db = await openDb(config.database);
 const llm = createProvider(config.ai);
 const app = createApp({ config, db, llm });

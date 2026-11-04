@@ -1,6 +1,25 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
+import { loadConfig } from '../src/config/env';
 import { ADMIN, getFormToken, setup, validEnquiry } from './helpers';
+
+describe('database config', () => {
+  const secrets = { SESSION_SECRET: 'x'.repeat(32), FORM_TOKEN_SECRET: 'y'.repeat(32), IP_HASH_SECRET: 'z'.repeat(32) };
+
+  it('accepts the TURSO_* names set by the Vercel integration', () => {
+    const c = loadConfig({ ...secrets, TURSO_DATABASE_URL: 'libsql://db.example.test', TURSO_AUTH_TOKEN: 't' });
+    expect(c.database).toEqual({ url: 'libsql://db.example.test', authToken: 't' });
+  });
+
+  it('prefers DATABASE_* over TURSO_*', () => {
+    const c = loadConfig({ ...secrets, DATABASE_URL: 'libsql://a.example.test', DATABASE_AUTH_TOKEN: 'a', TURSO_DATABASE_URL: 'libsql://b.example.test', TURSO_AUTH_TOKEN: 'b' });
+    expect(c.database).toEqual({ url: 'libsql://a.example.test', authToken: 'a' });
+  });
+
+  it('refuses to start on Vercel without a hosted database', () => {
+    expect(() => loadConfig({ ...secrets, VERCEL: '1' })).toThrow(/DATABASE_URL/);
+  });
+});
 
 /**
  * On Vercel every request may hit a different instance. Two apps over one database stand in

@@ -1,10 +1,6 @@
-import dotenv from 'dotenv';
 import { randomBytes } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import { localDbUrl, type DbConnection } from '../db/db';
 
-// Load the repo-root .env (never committed). Real environment variables take precedence.
-dotenv.config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)) });
 
 export interface RateLimitConfig {
   windowMs: number;
@@ -33,7 +29,7 @@ export interface AppConfig {
     apiKey?: string;
     timeoutMs: number;
   };
-  /** Absolute path to the built React app, served by Express in production. */
+  /** Built React app for Express to serve in production. Set by the local entry only; Vercel serves it from the client service. */
   clientDist?: string;
 }
 
@@ -54,10 +50,13 @@ function secret(env: NodeJS.ProcessEnv, name: string, isProd: boolean): string {
 }
 
 function database(env: NodeJS.ProcessEnv): DbConnection {
-  if (env.DATABASE_URL) return { url: env.DATABASE_URL, authToken: env.DATABASE_AUTH_TOKEN || undefined };
+  // TURSO_* are the names Vercel's Turso integration sets; DATABASE_* take precedence.
+  const url = env.DATABASE_URL || env.TURSO_DATABASE_URL;
+  const authToken = env.DATABASE_AUTH_TOKEN || env.TURSO_AUTH_TOKEN || undefined;
+  if (url) return { url, authToken };
   if (env.VERCEL) {
     // Vercel's filesystem is read-only and per-instance: a local file would silently lose data.
-    throw new Error('DATABASE_URL must point to a hosted database (e.g. Turso) when running on Vercel.');
+    throw new Error('DATABASE_URL (or TURSO_DATABASE_URL) must point to a hosted database when running on Vercel.');
   }
   return { url: localDbUrl(env.DB_PATH || 'data/enquiries.db') };
 }
@@ -84,6 +83,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       apiKey: env.AI_API_KEY || undefined,
       timeoutMs: int(env.AI_TIMEOUT_MS, 10_000),
     },
-    clientDist: fileURLToPath(new URL('../../../client/dist', import.meta.url)),
   };
 }

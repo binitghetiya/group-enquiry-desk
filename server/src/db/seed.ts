@@ -3,6 +3,7 @@
  * of made-up enquiries. Usage: npm run seed  (add -- --reset to wipe and re-create).
  * Targets DATABASE_URL (e.g. Turso) when set, otherwise the local DB_PATH file.
  */
+import '../config/dotenv';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import type { BrandId } from '../config/brands';
@@ -14,7 +15,7 @@ import { createUser, findUserByEmail, type Role } from './users';
 
 const config = loadConfig();
 const db = await openDb(config.database);
-console.log(`[seed] database: ${config.database.url.startsWith('file:') ? config.database.url : 'remote (DATABASE_URL)'}`);
+console.log(`[seed] database: ${config.database.url.startsWith('file:') ? config.database.url : 'remote (hosted libSQL)'}`);
 const reset = process.argv.includes('--reset');
 
 if (reset) {

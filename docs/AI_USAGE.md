@@ -14,7 +14,7 @@ The brief allows AI for research, suggestions, boilerplate and debugging, and re
 | Server code (Express, SQLite, validation, auth, CSRF, AI helper) | AI-generated |
 | React client | AI-generated |
 | Automated tests (51) and end-to-end smoke test | AI-generated and run |
-| Vercel deployment (libSQL/Turso data layer, database-backed sessions and rate limits, Build Output API bundle) | AI-generated, tested locally against a simulated Vercel router |
+| Vercel deployment (libSQL/Turso data layer, database-backed sessions and rate limits, Vercel Services config) | AI-generated; Vercel's own build output tested locally, including against the hosted Turso database |
 | README, incident note, SEO audit template | AI-drafted; the SEO evidence must be gathered by the candidate |
 
 ## Representative prompts (prompt log)
@@ -24,6 +24,7 @@ The brief allows AI for research, suggestions, boilerplate and debugging, and re
 4. *"install and run project"*
 5. *"make UI good using agents keep main thread for other work"*
 6. *"planning to deploy this online what we can do ?"*, then *"for vercel what we can do ?"* and *"yes for DB will use something and do it"*
+7. A Vercel-generated prompt to configure the repo as Vercel Services, confirmed with *"do it"*
 
 ## Security checks and corrections made during the session
 - **PDF checked before reading:** no `/JavaScript`, `/Launch`, `/OpenAction`, embedded files or forms. One hex-name hit was confirmed as a false positive inside a compressed stream.
@@ -32,6 +33,7 @@ The brief allows AI for research, suggestions, boilerplate and debugging, and re
 - **The production smoke test showed** that the `Secure` session cookie is (correctly) not set over plain HTTP. The README now documents that production needs HTTPS and `TRUST_PROXY`.
 - **`better-sqlite3` 11 did not build on Node 26** (it uses a V8 API that was removed). It was replaced by `@libsql/client`, which also made the Vercel deployment possible.
 - **New tests were checked against a deliberate fault.** With the database session store removed, three of the five serverless tests failed as expected.
+- **A secrets leak was caught before deploying.** Vercel's file tracer had copied the local `.env` into the server function, because the config code referenced it by a fixed path. Loading `.env` moved to the local-only entry points, and a rebuilt function was checked to contain no `.env`.
 - **Live sites were not touched.** The SEO audit was deliberately left as an evidence template instead of AI-written findings, to avoid invented data.
 
 ## Candidate's own verification (to complete honestly)

@@ -1,4 +1,4 @@
-import { createClient, type Client, type InArgs, type ResultSet } from '@libsql/client';
+import type { Client, Config, InArgs, ResultSet } from '@libsql/client';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { SCHEMA_SQL, SESSIONS_SQL } from './schema';
@@ -78,12 +78,23 @@ export function localDbUrl(file: string): string {
 
 const isLocal = (url: string) => url === ':memory:' || url.startsWith('file:');
 
-export function connect(conn: DbConnection): DB {
+/**
+ * Local files need the Node client, which loads a native SQLite binary. Remote databases use the
+ * web-standard client instead: pure JS over HTTPS, nothing native to ship in a serverless
+ * function. The imports are dynamic so a deployed function never loads the native module.
+ */
+async function loadCreateClient(local: boolean): Promise<(config: Config) => Client> {
+  return local ? (await import('@libsql/client')).createClient : (await import('@libsql/client/web')).createClient;
+}
+
+export async function connect(conn: DbConnection): Promise<DB> {
+  const local = isLocal(conn.url);
   if (conn.url.startsWith('file:')) mkdirSync(dirname(conn.url.slice('file:'.length)), { recursive: true });
   // Turso's default "libsql:" scheme uses WebSockets; stateless HTTPS suits short-lived requests.
   const url = conn.url.startsWith('libsql://') && !conn.url.includes('tls=0')
     ? `https://${conn.url.slice('libsql://'.length)}`
     : conn.url;
+  const createClient = await loadCreateClient(local);
   return wrapClient(createClient({ url, authToken: conn.authToken, intMode: 'number' }));
 }
 
@@ -97,7 +108,7 @@ export async function migrate(db: DB, conn: DbConnection): Promise<void> {
 }
 
 export async function openDb(conn: DbConnection): Promise<DB> {
-  const db = connect(conn);
+  const db = await connect(conn);
   await migrate(db, conn);
   return db;
 }

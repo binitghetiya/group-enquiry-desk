@@ -3,8 +3,8 @@ dist/
 coverage/
 
 # Secrets and local data - never commit
-.env
-.env.*
+# Any .env variant (.env, .env.local, ".env copy", ...) except the template
+.env*
 !.env.example
 *.db
 *.db-shm

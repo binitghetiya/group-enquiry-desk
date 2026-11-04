@@ -41,10 +41,13 @@ Vercel runs the API as serverless functions: instances are short-lived, share no
 - **Rate-limit counters** are stored in a `rate_limits` table, so limits hold across instances.
 - **Multi-step writes** (status change plus audit row, SEO approve/reject/publish) run as one atomic batch with guarded `WHERE` clauses, in a single network round trip.
 
-`npm run build:vercel` builds the client and writes a [Build Output API](https://vercel.com/docs/build-output-api/v3) bundle to `.vercel/output`:
-- `static/` holds the React app, served from Vercel's CDN with the same CSP and security headers Helmet sets on the API, plus `X-Robots-Tag: noindex` (set `ALLOW_INDEXING=1` at build time to drop it).
-- `functions/api.func/` holds the whole Express API bundled into one file, with no native modules. It receives every `/api/*` request.
-- `config.json` routes `/api/*` to the function and falls back to `index.html` for client routes.
+`vercel.json` deploys the repo as one Vercel project with two [services](https://vercel.com/docs/services):
+- **`client`** (`client/`, Vite) is public on every path except `/api/*`. Vercel serves the built React app from its CDN with the same CSP and security headers Helmet sets on the API, plus `X-Robots-Tag: noindex`. Client-side routes such as `/admin` fall back to `index.html`.
+- **`server`** (`server/`, Express) is public on `/api/*`. `server/src/vercel.ts` is its entry: one Vercel Function that receives the original path, so the Express routes are unchanged.
+- **No bindings.** The browser calls `/api` on the same domain, and no service calls another server-side.
+- Both services install from the repo root (`cd .. && npm ci`), because the npm workspaces share one lockfile.
+
+To build exactly what Vercel builds, run `npx vercel build` from the repo root. It runs both services' installs and builds and writes the result to `.vercel/output`.
 
 **One-time setup**
 1. Create a Turso database and token. Pick the region closest to your Vercel function region (Vercel's default is Washington, D.C., `iad1`).
@@ -53,13 +56,15 @@ Vercel runs the API as serverless functions: instances are short-lived, share no
    turso db show group-enquiry-desk --url      # -> DATABASE_URL
    turso db tokens create group-enquiry-desk   # -> DATABASE_AUTH_TOKEN
    ```
-2. Import the repository in Vercel. Keep the root directory as the repo root. `vercel.json` sets the install and build commands.
+2. Import the repository in Vercel. Set **Root Directory** to the repo root (empty) and **Framework Preset** to *Services* if offered, otherwise *Other*. `vercel.json` defines everything else.
 3. Add these environment variables in the Vercel project settings:
 
    | Variable | Value |
    |---|---|
    | `DATABASE_URL` | the `libsql://...` URL from step 1 |
    | `DATABASE_AUTH_TOKEN` | the token from step 1 |
+
+   If you add Turso through Vercel's Marketplace integration instead, it sets `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. The app reads those too, so skip the two rows above.
    | `SESSION_SECRET`, `FORM_TOKEN_SECRET`, `IP_HASH_SECRET` | three different random values, 32+ characters each |
    | `TRUST_PROXY` | `1` (required: without it the `Secure` cookie is never sent and login fails) |
    | `AI_PROVIDER` | `mock` |
@@ -72,7 +77,9 @@ Vercel runs the API as serverless functions: instances are short-lived, share no
 5. Deploy. Tables are created automatically on the first request, and the step is idempotent.
 
 **Notes**
-- The function runs on the Node version configured in the Vercel project. For a prebuilt deploy from a machine on another version, set `VERCEL_FUNCTION_RUNTIME` (for example `nodejs22.x`) before building.
+- The server function runs on the Node version configured in the Vercel project.
+- The server never bundles a local `.env`. Only the local entry points (`npm run dev`, `npm run seed`) load it, so Vercel's file tracer cannot copy secrets into a deployment.
+- Locally the app uses the Node libSQL client, which supports SQLite files. On Vercel it loads the pure-JS web client over HTTPS, so the function ships no native modules.
 - Locally, nothing changes: without `DATABASE_URL` the app uses the SQLite file at `DB_PATH`. On Vercel, a missing `DATABASE_URL` stops startup with a clear error instead of silently losing data.
 - This is a demo with fictional data under real brand names. Keep the `noindex` header, and consider Vercel's deployment protection so only reviewers can open it.
 
