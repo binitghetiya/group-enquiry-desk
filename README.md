@@ -12,6 +12,14 @@ A secure enquiry desk shared by five brands, with an admin-only AI SEO helper th
 
 Brand site keys: `ipstudios`, `drvet`, `space42arena`, `jazzbar`, `menalead`.
 
+## Live demo
+| Page | Link |
+|---|---|
+| Home | https://group-enquiry-desk-xvfl.vercel.app |
+| Public enquiry form (example) | https://group-enquiry-desk-xvfl.vercel.app/enquire/space42arena |
+| Staff enquiry list | https://group-enquiry-desk-xvfl.vercel.app/admin |
+| AI SEO helper (admin) | https://group-enquiry-desk-xvfl.vercel.app/admin/seo |
+
 ## Login
 Demo accounts only. Change these before making the site public.
 
