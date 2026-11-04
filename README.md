@@ -26,7 +26,7 @@ npm run dev                 # API on http://127.0.0.1:4000, UI on http://127.0.0
 npm test                    # 46 automated security/functionality tests
 ```
 - If `SEED_ADMIN_PASSWORD` / `SEED_STAFF_PASSWORD` are empty, `npm run seed` generates random passwords and prints them **once**.
-- `npm run seed -- --reset` wipes and recreates the data.
+- `npm run seed -- --reset` wipes and recreates the data. In Windows PowerShell 5.1, quote the separator: `npm run seed '--' --reset`.
 - Seeded accounts: `admin@example.test` (admin: enquiries and AI helper) and `staff@example.test` (staff: enquiries only).
 
 **Production-like run:** `npm run build`, then `NODE_ENV=production npm start`. Express serves the built UI with a strict CSP.
