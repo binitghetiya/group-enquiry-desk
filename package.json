@@ -1,0 +1,24 @@
+{
+  "name": "group-enquiry-desk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Assessment prototype: secure multi-brand enquiry desk with an admin-only, human-approved AI SEO helper (Node + React).",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "seed": "npm run seed -w server",
+    "test": "npm test -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
+    "build": "npm run build -w client",
+    "start": "npm start -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

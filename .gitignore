@@ -1,0 +1,19 @@
+node_modules/
+dist/
+coverage/
+
+# Secrets and local data - never commit
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+server/data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
